@@ -1,8 +1,7 @@
 /* Lian Planner Service Worker — Offline-First App Shell & Smart Caching */
-const CACHE_VERSION = 'lian-pwa-v1';
+const CACHE_VERSION = 'lian-pwa-v2';
 const APP_SHELL = [
   '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/icons/apple-touch-icon.png',
   '/icons/favicon-32.png',
@@ -25,9 +24,6 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)));
-    if (self.registration && self.registration.navigationPreload) {
-      try { await self.registration.navigationPreload.enable(); } catch (e) {}
-    }
     await self.clients.claim();
   })());
 });
@@ -45,26 +41,20 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navigation requests: serve cached shell instantaneously when offline/slow, refresh in background
+  // Navigation requests: serve cached '/' shell instantaneously, refresh in background
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
-      const cached = (await cache.match('/index.html')) || (await cache.match('/'));
+      const cached = await cache.match('/');
 
-      const networkFetch = (async () => {
-        try {
-          const preload = event.preloadResponse ? await event.preloadResponse : null;
-          const res = preload || await fetch(req);
-          if (res && res.ok && res.type === 'basic') {
-            cache.put('/index.html', res.clone()).catch(() => {});
-          }
-          return res;
-        } catch (e) {
-          return null;
+      const networkFetch = fetch('/').then((res) => {
+        if (res && res.ok && !res.redirected && res.type === 'basic') {
+          cache.put('/', res.clone()).catch(() => {});
         }
-      })();
+        return res;
+      }).catch(() => null);
 
-      if (cached) {
+      if (cached && !cached.redirected) {
         event.waitUntil(networkFetch);
         return cached;
       }
@@ -84,13 +74,13 @@ self.addEventListener('fetch', (event) => {
     const cache = await caches.open(CACHE_VERSION);
     const cached = await cache.match(req);
     const networkFetch = fetch(req).then((res) => {
-      if (res && res.ok && res.type === 'basic') {
+      if (res && res.ok && !res.redirected && res.type === 'basic') {
         cache.put(req, res.clone()).catch(() => {});
       }
       return res;
     }).catch(() => null);
 
-    if (cached) {
+    if (cached && !cached.redirected) {
       event.waitUntil(networkFetch);
       return cached;
     }
