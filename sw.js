@@ -1,90 +1,45 @@
-/* Lian Planner Service Worker — Offline-First App Shell & Smart Caching */
-const CACHE_VERSION = 'lian-pwa-v2';
-const APP_SHELL = [
+const CACHE_NAME = 'lian-v1';
+const ASSETS = [
   '/',
-  '/manifest.webmanifest',
-  '/icons/apple-touch-icon.png',
-  '/icons/favicon-32.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/icon.svg'
+  '/index.html',
+  '/manifest.json',
+  '/sw.js',
+  '/js/three.min.js',
+  '/fonts/bebas-neue.woff2',
+  '/fonts/pixelify-sans-500.woff2',
+  '/fonts/pixelify-sans-700.woff2',
+  '/fonts/vazirmatn-400.woff2',
+  '/fonts/vazirmatn-600.woff2',
+  '/fonts/vazirmatn-700.woff2',
+  '/assets/favicon-32.png',
+  '/assets/apple-touch-icon.png',
+  '/assets/face.jpg',
+  '/assets/manifest-192x192.png',
+  '/assets/manifest-512x512.png',
+  '/assets/manifest-512x512-maskable.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .catch(() => {})
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      if (response) return response;
+      return fetch(event.request);
+    })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)));
-    await self.clients.claim();
-  })());
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-
-  // Navigation requests: serve cached '/' shell instantaneously, refresh in background
-  if (req.mode === 'navigate') {
-    event.respondWith((async () => {
-      const cache = await caches.open(CACHE_VERSION);
-      const cached = await cache.match('/');
-
-      const networkFetch = fetch('/').then((res) => {
-        if (res && res.ok && !res.redirected && res.type === 'basic') {
-          cache.put('/', res.clone()).catch(() => {});
-        }
-        return res;
-      }).catch(() => null);
-
-      if (cached && !cached.redirected) {
-        event.waitUntil(networkFetch);
-        return cached;
-      }
-
-      const fresh = await networkFetch;
-      if (fresh) return fresh;
-      return new Response('Offline — open Lian once while online to cache.', {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-      });
-    })());
-    return;
-  }
-
-  // Same-origin static assets: Stale-While-Revalidate for fast mobile loads & offline support
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE_VERSION);
-    const cached = await cache.match(req);
-    const networkFetch = fetch(req).then((res) => {
-      if (res && res.ok && !res.redirected && res.type === 'basic') {
-        cache.put(req, res.clone()).catch(() => {});
-      }
-      return res;
-    }).catch(() => null);
-
-    if (cached && !cached.redirected) {
-      event.waitUntil(networkFetch);
-      return cached;
-    }
-    const fresh = await networkFetch;
-    return fresh || new Response('', { status: 504 });
-  })());
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    })
+  );
 });
