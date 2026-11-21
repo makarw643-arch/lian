@@ -1,4 +1,4 @@
-const BUILD_ID = '20261121-095926';
+const BUILD_ID = '20261121-103006';
 const CACHE_NAME = 'lian-' + BUILD_ID;
 const ASSETS = [
   '/',
