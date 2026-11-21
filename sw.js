@@ -1,4 +1,5 @@
-const CACHE_NAME = 'lian-v1';
+const BUILD_ID = '20261121-095926';
+const CACHE_NAME = 'lian-' + BUILD_ID;
 const ASSETS = [
   '/',
   '/index.html',
